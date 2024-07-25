@@ -1,0 +1,105 @@
+// This source code is subject to the terms of nabeeta chrispus
+
+//@version=5
+strategy(title='AsianRange with Orders', shorttitle='AsianRangeOrders', overlay=true, currency=currency.USD)  // Set strategy currency here
+
+// Input parameters
+accountNumber = input.string('6251613159637', 'Pineconnector account number', group = "Pineconnector")
+risks = input(1.0 , "RISK " , group = "Pineconnector")
+string assetName = syminfo.ticker
+displayZonesLimit = input.int(title='Max Timeframe To Display (Minutes)', defval=60, minval=1, maxval=1440)
+
+// Asian session settings
+asiashow = input(true, title='Display Asia Range', group="Asia Session")
+asiacolor = input(color.new(color.aqua, 70), 'Asia Range Color', group="Asia Session")
+asia = input.session(title='Asia Session', defval='1900-0000', group="Asia Session")
+i_sess = input.session("0000-1900", "Session" , tooltip = "SESSION IN WHICH TRADE WILL BE TAKEN DONT OVERLAP WITH ASIAN SESSION")
+t = time(timeframe.period, i_sess)
+bgcolor(time == t ? color.new(color.green , 80) : na)
+// Functions
+in_session(sess) =>
+    not na(time(timeframe.period, sess))
+
+start_time(sess) =>
+    int startTime = na
+    startTime := in_session(sess) and not in_session(sess)[1] ? time : startTime[1]
+    startTime
+
+is_new_session(res, sess) =>
+    t = time(res, sess)
+    na(t[1]) and not na(t) or t[1] < t
+
+BarInSession(sess) =>
+    time(timeframe.period, sess) != 0
+
+// Parameters
+displayZones = timeframe.isintraday and (timeframe.multiplier > displayZonesLimit ? false : true)
+var closedTradesToday = 0
+// Asia session box
+asia_session = is_new_session('1440', asia)
+
+var float _asialow = na
+var float _asiahigh = na
+var box _asiabox = na
+if asia_session
+    // label.new(bar_index , high , "NEW")
+    _asiahigh := na
+    _asialow := na
+    strategy.close_all()
+    closedTradesToday:=0
+
+_asiastart = start_time(asia)
+
+if in_session(asia)
+
+    if low < _asialow or na(_asialow)
+        _asialow := low
+    if high > _asiahigh or na(_asiahigh)
+        _asiahigh := high
+
+    
+
+// Initialize variables for trading logic
+var float buy_stop_level = na
+var float sell_stop_level = na
+var float stop_loss = na
+var float take_profit_buy = na
+var float take_profit_sell = na
+endhour = input(00,"ORDER PLACE HOUR ")
+endminute = input(00,"ORDER PLACE MINUTE ")
+
+
+// Reset variables and place orders after each Asian session
+commentEnter() => accountNumber + ",long,"   + assetName + ',risk=' + str.tostring(risks)
+commentEnters() => accountNumber + ",short,"   + assetName + ',risk=' + str.tostring(risks)
+string commentClose = accountNumber + (strategy.position_size <= 0 ? ',closeshort,' : ',closelong,') + assetName
+//STOPLOSS AND PROFIT
+
+maxtrades = input(1 , "MAX NO OF TRADES PER SESSION")
+RR = input(1.5 , "RISK TO REWARD RATIO")
+stop_l = _asialow
+stop_s= _asiahigh
+target_l = _asiahigh+((_asiahigh-_asialow)*RR)
+target_s = _asialow-((_asiahigh-_asialow)*RR)
+//NNUMBER OF TRADES
+for i=0 to strategy.closedtrades
+    if year(strategy.closedtrades.exit_time(i)) == year(time) and month(strategy.closedtrades.exit_time(i)) == month(time) and dayofmonth(strategy.closedtrades.exit_time(i)) == dayofmonth(time) and hour(strategy.closedtrades.exit_time(i)) == hour and minute(strategy.closedtrades.exit_time(i)) == minute
+        closedTradesToday := closedTradesToday + 1
+if time == t and closedTradesToday < maxtrades 
+    strategy.entry("Buy", strategy.long, stop=_asiahigh , alert_message  = commentEnter())
+    strategy.exit("Exit Buy", "Buy" ,stop=_asialow, limit = target_l , alert_message = commentClose)
+
+if time == t and closedTradesToday<maxtrades 
+    strategy.entry("Sell", strategy.short, stop=_asialow , alert_message = commentEnters())
+    strategy.exit("Exit Sell", "Sell" ,stop=_asiahigh , limit = target_s, alert_message = commentClose)
+// plot(_asiahigh)
+// plot(_asialow)
+
+
+if strategy.opentrades.entry_id(strategy.opentrades-1) == "Buy"
+    strategy.cancel("Sell")
+    strategy.cancel("Exit Sell")
+
+if strategy.opentrades.entry_id(strategy.opentrades-1) == "Sell"
+    strategy.cancel("Buy")
+    strategy.cancel("Exit Buy")
