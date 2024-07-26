@@ -1,0 +1,64 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © simghaditya21
+
+//@version=5
+indicator("T123" , overlay = true)
+var T915 =0.0
+var T123 = 0.0
+var Y123 =0.0
+
+var T915s =0.0
+var T123s = 0.0
+var Y123s =0.0
+
+perc= input(0.261,"percentage")
+
+
+isNewDay = dayofweek != dayofweek[1]
+
+
+
+if hour==9 and minute ==15
+    T915 := high + (high*perc)/100
+    T915s := low - (low*perc)/100
+
+if hour==12 and minute == 30
+    T123:=high  + (high*perc)/100
+    T123s:=low - (low*perc)/100
+
+if T123 != T123[1]
+    Y123 := T123[1]
+if T123s != T123s[1]
+    Y123s := T123s[1]
+
+
+plot(T123,"T123",color = color.white,editable = true)
+plot(T123s,"T123",color = color.white,editable = true)
+plot(Y123,"Y123",color = color.red,editable = true)
+plot(Y123s,"Y123s",color = color.green,editable = true)
+plot(T915,"T915",color = color.blue,editable = true)
+plot(T915s,"T915s",color = color.blue,editable = true)
+
+
+var label T915l = na
+var label T915ls = na
+var label T1230l = na
+var label T1230ls = na
+var label Y1230l = na
+var label Y1230ls = na
+
+if barstate.isfirst
+    T915l := label.new(bar_index,T915,text = "915 H",style = label.style_label_center,color = color.green)
+    T915ls := label.new(bar_index,T915s,text = "915 L",style = label.style_label_center,color = color.green)
+    T1230l := label.new(bar_index,T123,text ="T123 H",style = label.style_label_center,color = color.red)
+    T1230ls:= label.new(bar_index,T123s,text = "T123 L",style = label.style_label_center,color = color.red)
+    Y1230l := label.new(bar_index,Y123,text = "Y123 H",style = label.style_label_center,color = color.orange)
+    Y1230ls := label.new(bar_index,Y123s,text = "Y123 L",style = label.style_label_center,color = color.orange)
+
+if barstate.islast
+    label.set_xy(T915l,bar_index+10,T915)
+    label.set_xy(T915ls,bar_index+10,T915s)
+    label.set_xy(T1230l,bar_index+10,T123)
+    label.set_xy(T1230ls,bar_index+10,T123s)
+    label.set_xy(Y1230l,bar_index+10,Y123)
+    label.set_xy(Y1230ls,bar_index+10,Y123s)
