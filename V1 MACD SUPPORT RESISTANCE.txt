@@ -1,0 +1,105 @@
+//@version=5
+indicator(title="Moving Average Convergence Divergence", shorttitle="MACD", overlay = true, max_lines_count = 20)
+// Getting inputs
+houropen = request.security(syminfo.tickerid , "60" , open)
+fast_length = input(title = "Fast Length", defval = 12)
+slow_length = input(title = "Slow Length", defval = 26)
+src = input(title = "Source", defval = close)
+signal_length = input.int(title = "Signal Smoothing",  minval = 1, maxval = 50, defval = 9, display = display.data_window)
+sma_source = input.string(title = "Oscillator MA Type",  defval = "EMA", options = ["SMA", "EMA"], display = display.data_window)
+sma_signal = input.string(title = "Signal Line MA Type", defval = "EMA", options = ["SMA", "EMA"], display = display.data_window)
+// Calculating
+fast_ma = sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length)
+slow_ma = sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length)
+hist = macd - signal
+
+alertcondition(hist[1] >= 0 and hist < 0, title = 'Rising to falling', message = 'The MACD histogram switched from a rising to falling state')
+alertcondition(hist[1] <= 0 and hist > 0, title = 'Falling to rising', message = 'The MACD histogram switched from a falling to rising state')
+
+hline(0, "Zero Line", color = color.new(#787B86, 50))
+plot(hist, title = "Histogram", style = plot.style_columns, color = (hist >= 0 ? (hist[1] < hist ? #26A69A : #B2DFDB) : (hist[1] < hist ? #FFCDD2 : #FF5252)))
+plot(macd,   title = "MACD",   color = #2962FF)
+plot(signal, title = "Signal", color = #FF6D00)
+
+// Variables to track crossover and crossunder bar indices
+var int crossoverBar = na
+var int crossunderBar = na
+var difference = 0
+
+// Check for MACD crossover and crossunder
+if ta.crossover(macd, signal)
+    crossoverBar := bar_index
+
+if ta.crossunder(macd, signal)
+    crossunderBar := bar_index
+
+// Calculate difference when both events occur
+difference := math.abs(crossunderBar - crossoverBar)
+// plot(difference, color=color.green, linewidth=2, title="Bar Index Difference")
+
+// Arrays to store bar indexes for dark green and light green bars
+var darkGreenBars = array.new_int(0)
+var lightGreenBars = array.new_int(0)
+var barsBetween = array.new_int(0)
+var lightGreenBar = 0
+var histValuesBetween = array.new_float(0)
+var lowestHistValue = 0.0
+var int lowestHistBarIndex = 0
+var int barinc = 0
+var int lowestHistBarIndexs = 0
+
+if ta.crossover(macd, signal) or ta.crossunder(macd, signal)
+    array.clear(darkGreenBars)
+    array.clear(lightGreenBars)
+    array.clear(barsBetween)
+    array.clear(histValuesBetween)
+    lowestHistBarIndex :=0
+    lowestHistValue := 0.0
+    barinc := 0
+    lowestHistBarIndexs := 0
+    
+
+if ta.crossunder(macd, signal)
+    for i=1 to difference
+        if hist[i-1] < hist[i] 
+            array.push(darkGreenBars, i)
+        if hist[i-1] > hist[i] 
+            array.push(lightGreenBars ,i)
+    if array.size(lightGreenBars) > 0
+        for i = 0 to array.size(lightGreenBars) - 1
+            lightGreenBar := array.get(lightGreenBars, i)
+            if array.size(darkGreenBars) > 2
+                for j = 0 to array.size(darkGreenBars) - 2
+                    darkGreenBar1 = array.get(darkGreenBars, j)
+                    darkGreenBar2 = array.get(darkGreenBars, j+1)
+                    if lightGreenBar > darkGreenBar1 and lightGreenBar < darkGreenBar2
+                        array.push(barsBetween, lightGreenBar)
+// Check if there are bars between
+    if array.size(barsBetween) > 0
+    // Populate histValuesBetween array
+        for i = 0 to array.size(barsBetween) - 1
+            histValues = hist[array.get(barsBetween, i)]
+            array.push(histValuesBetween, histValues)
+
+
+// Find the lowest histogram value and its corresponding bar index
+        lowestHistValue := array.min(histValuesBetween)
+        lowestHistBarIndex := array.indexof(histValuesBetween, lowestHistValue)
+        lowestHistBarIndexs := array.get(barsBetween,lowestHistBarIndex)
+        line.new(bar_index - lowestHistBarIndexs , open[lowestHistBarIndexs] , bar_index - (lowestHistBarIndexs - 1) , open[lowestHistBarIndexs] , extend = extend.right)
+
+
+// Plot the values
+plot(lowestHistBarIndex , "lowestHistBarIndex",color = color.white)
+plot(lowestHistBarIndexs , "lowestHistBarIndex",color = color.white)
+plot(lowestHistValue ,"lowestHistValue")
+plot(array.size(barsBetween), "barsBetween")
+plot(array.size(lightGreenBars) ,"lightGreenBars")
+plot(array.size(darkGreenBars), "darkGreenBars")
+plot(difference , "difference")
+plot(barinc , "barinc")
+plot(bar_index - barinc)
+plot(bar_index)
+
