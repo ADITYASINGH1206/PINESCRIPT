@@ -1,0 +1,173 @@
+//@version=5
+indicator(title="Moving Average Convergence Divergence", shorttitle="MACD S&R", overlay = true , max_lines_count = 500 ,max_labels_count = 500)
+// Getting inputs
+houropen = request.security(syminfo.tickerid , "60" , open)
+fastLength = input(12, title="Fast Length")
+slowLength = input(26, title="Slow Length")
+signalSmoothing = input(9, title="Signal Smoothing")
+higherTimeframe = input("60", title="Higher Time Frame")
+opens = request.security(syminfo.tickerid, higherTimeframe, open)
+// plot(src)
+// Fetch MACD values from higher time frame
+[higherMACDLine, higherSignalLine, _] = request.security(syminfo.tickerid, higherTimeframe, ta.macd(close, fastLength, slowLength, signalSmoothing))
+
+// Calculate MACD crossover and crossunder
+higherMACDCrossover = ta.crossover(higherMACDLine, higherSignalLine)
+higherMACDCrossunder = ta.crossunder(higherMACDLine, higherSignalLine)
+
+// Track bars since last crossover and crossunder
+var int barsSinceCrossover = na
+var int barsSinceCrossunder = na
+barindexs = request.security(syminfo.tickerid , higherTimeframe ,bar_index)
+if higherMACDCrossover
+    barsSinceCrossover := bar_index
+
+if higherMACDCrossunder
+    barsSinceCrossunder := bar_index
+
+var difference = 0
+difference := math.abs(barsSinceCrossover - barsSinceCrossunder)
+hist = higherMACDLine - higherSignalLine
+
+alertcondition(hist[1] >= 0 and hist < 0, title = 'Rising to falling', message = 'The MACD histogram switched from a rising to falling state')
+alertcondition(hist[1] <= 0 and hist > 0, title = 'Falling to rising', message = 'The MACD histogram switched from a falling to rising state')
+
+// hline(0, "Zero Line", color = color.new(#787B86, 50))
+//plot(hist, title = "Histogram", style = plot.style_columns, color = (hist >= 0 ? (hist[1] < hist ? #26A69A : #B2DFDB) : (hist[1] < hist ? #FFCDD2 : #FF5252)))
+// plot(macd,   title = "MACD",   color = #2962FF)
+// plot(signal, title = "Signal", color = #FF6D00)
+
+// Variables to track crossover and crossunder bar indices
+
+// Check for MACD crossover and crossunder
+
+// Arrays to store bar indexes for dark green and light green bars
+var darkGreenBars = array.new_int(0)
+var lightGreenBars = array.new_int(0)
+var barsBetween = array.new_int(0)
+var lightGreenBar = 0
+var histValuesBetween = array.new_float(0)
+var lowestHistValue = 0.0
+var int lowestHistBarIndex = 0
+var int barinc = 0
+var int lowestHistBarIndexs = 0
+var label htf_fvg_lab = na
+var label[] htf_bull_fvg_lab = array.new_label()
+var label[] htf_bear_fvg_lab = array.new_label()
+colorR = input.color(color.red , title = "COLOR FOR RESISTANCE")
+colorS = input.color(color.green , "COLOR FOR SUPPORT")
+colorLR = input.color(color.red , title = "COLOR FOR RESISTANCE LABEL")
+colorLS = input.color(color.green , title = "COLOR FOR SUPPORT LABEL")
+
+if ta.crossover(higherMACDLine, higherSignalLine) or ta.crossunder(higherMACDLine, higherSignalLine)
+    array.clear(darkGreenBars)
+    array.clear(lightGreenBars)
+    array.clear(barsBetween)
+    array.clear(histValuesBetween)
+    lowestHistBarIndex :=0
+    lowestHistValue := 0.0
+    barinc := 0
+    lowestHistBarIndexs := 0
+    
+
+if ta.crossunder(higherMACDLine, higherSignalLine)
+    for i=1 to difference
+        if hist[i-1] < hist[i] 
+            array.push(darkGreenBars, i)
+        if hist[i-1] > hist[i] 
+            array.push(lightGreenBars ,i)
+    if array.size(lightGreenBars) > 0
+        for i = 0 to array.size(lightGreenBars) - 1
+            lightGreenBar := array.get(lightGreenBars, i)
+            if array.size(darkGreenBars) > 2
+                for j = 0 to array.size(darkGreenBars) - 2
+                    darkGreenBar1 = array.get(darkGreenBars, j)
+                    darkGreenBar2 = array.get(darkGreenBars, j+1)
+                    if lightGreenBar > darkGreenBar1 and lightGreenBar < darkGreenBar2
+                        array.push(barsBetween, lightGreenBar)
+// Check if there are bars between
+    if array.size(barsBetween) > 0
+    // Populate histValuesBetween array
+        for i = 0 to array.size(barsBetween) - 1
+            histValues = hist[array.get(barsBetween, i)]
+            array.push(histValuesBetween, histValues)
+
+
+// Find the lowest histogram value and its corresponding bar index
+        lowestHistValue := array.min(histValuesBetween)
+        lowestHistBarIndex := array.indexof(histValuesBetween, lowestHistValue)
+        lowestHistBarIndexs := array.get(barsBetween,lowestHistBarIndex)
+        line.new(bar_index  , opens[lowestHistBarIndexs] , bar_index +1 , opens[lowestHistBarIndexs] , extend = extend.both , color = colorR)
+        htf_fvg_lab := label.new(x=bar_index , y=opens[lowestHistBarIndexs],text = str.tostring(opens[lowestHistBarIndexs]) ,style = label.style_label_center, color=colorLR)
+        array.push(htf_bull_fvg_lab, htf_fvg_lab)
+
+//SUPPORT
+for i=0 to array.size(htf_bull_fvg_lab)-1
+    if array.size(htf_bull_fvg_lab)>0
+        label.set_x(array.get(htf_bull_fvg_lab,i), bar_index)
+var darkRedBars = array.new_int(0)
+var lightRedBars = array.new_int(0)
+var barsBetweens = array.new_int(0)
+var lightRedBar = 0
+var histValuesBetweens = array.new_float(0)
+var HighestHistValue = 0.0
+var int HighestHistBarIndex = 0
+var int barincs = 0
+var int HighestHistBarIndexs = 0
+var hlinepricess = array.new_float()
+if ta.crossover(higherMACDLine, higherSignalLine) or ta.crossunder(higherMACDLine, higherSignalLine)
+    array.clear(darkRedBars)
+    array.clear(lightRedBars)
+    array.clear(barsBetweens)
+    array.clear(histValuesBetweens)
+    HighestHistBarIndex :=0
+    HighestHistValue := 0.0
+    barincs := 0
+    HighestHistBarIndexs := 0
+    
+
+if ta.crossover(higherMACDLine, higherSignalLine)
+    for i=1 to difference
+        if hist[i-1] < hist[i] 
+            array.push(lightRedBars, i)
+        if hist[i-1] > hist[i] 
+            array.push(darkRedBars ,i)
+    if array.size(lightRedBars) > 0
+        for i = 0 to array.size(lightRedBars) - 1
+            lightRedBar := array.get(lightRedBars, i)
+            if array.size(darkRedBars) > 2
+                for j = 0 to array.size(darkRedBars) - 2
+                    darkRedBars1 = array.get(darkRedBars, j)
+                    darkRedBars2 = array.get(darkRedBars, j+1)
+                    if lightRedBar > darkRedBars1 and lightRedBar < darkRedBars2
+                        array.push(barsBetweens, lightRedBar)
+// Check if there are bars between
+    if array.size(barsBetweens) > 0
+    // Populate histValuesBetween array
+        for i = 0 to array.size(barsBetweens) - 1
+            histValuess = hist[array.get(barsBetweens, i)]
+            array.push(histValuesBetweens, histValuess)
+
+
+// Find the lowest histogram value and its corresponding bar index
+        HighestHistValue := array.max(histValuesBetweens)
+        HighestHistBarIndex := array.indexof(histValuesBetweens, HighestHistValue)
+        HighestHistBarIndexs := array.get(barsBetweens,HighestHistBarIndex)
+        line.new(bar_index, opens[HighestHistBarIndexs] , bar_index +1, opens[HighestHistBarIndexs] , extend = extend.both, color = colorS)
+        htf_fvg_lab :=label.new(x=bar_index , y=opens[HighestHistBarIndexs],text = str.tostring(opens[HighestHistBarIndexs]) ,style = label.style_label_center, color=colorLS)
+        array.push(htf_bear_fvg_lab, htf_fvg_lab)
+for i=0 to array.size(htf_bear_fvg_lab)-1
+    if array.size(htf_bear_fvg_lab)>0
+        label.set_x(array.get(htf_bear_fvg_lab,i), bar_index)
+// Plot the values
+//plot(lowestHistBarIndex , "lowestHistBarIndex",color = color.white)
+//plot(lowestHistBarIndexs , "lowestHistBarIndex",color = color.white)
+//plot(lowestHistValue ,"lowestHistValue")
+//plot(array.size(barsBetween), "barsBetween")
+//plot(array.size(lightGreenBars) ,"lightGreenBars")
+//plot(array.size(darkGreenBars), "darkGreenBars")
+//plot(difference , "difference")
+//plot(barinc , "barinc")
+//plot(bar_index - barinc)
+//plot(bar_index)
+
