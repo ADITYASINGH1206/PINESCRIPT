@@ -1,0 +1,199 @@
+// This work is licensed under a Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © simghaditya21
+
+//@version=5
+strategy("SMT Divergences ", "SMT Divergences", overlay = true, max_lines_count = 500, max_labels_count = 500)
+//------------------------------------------------------------------------------
+//Settings
+//-----------------------------------------------------------------------------{
+length = input.int(3, 'Pivot LookbackL')
+lengths = input.int(1, 'Pivot LookbackR')
+
+//Symbol A
+useSym1 = input(true, 'Comparison Symbol', inline = 'symA')
+sym1    = input.symbol('NIFTY', '', inline = 'symA')
+buystr = input.string("BUY MES" , "BUY ALERT")
+sellstr = input.string("SELL MES" , "SELL ALERT")
+
+
+//Style
+bullDivCss = input.color(#ff1100, 'Swing High', group = 'Style')
+bearDivCss = input.color(#2157f3, 'Swing Low', group = 'Style')
+//CONIDTIONS
+divergence_candle = input.bool(true , "DIVERGENCE CANDLE ON/OFF")
+divergence_candle_nxt = input.bool(true, "HIGHER OR LOWER CLOSE ON/OFF")
+//Dashboard
+showDash = input(false, 'Show Dashboard'                                                               , group = 'Dashboard')
+dashLoc  = input.string('Top Right', 'Location', options = ['Top Right', 'Bottom Right', 'Bottom Left'], group = 'Dashboard')
+textSize = input.string('Small', 'Size'        , options = ['Tiny', 'Small', 'Normal']                 , group = 'Dashboard')
+
+//-----------------------------------------------------------------------------}
+//Function
+//-----------------------------------------------------------------------------{
+n = bar_index
+
+get_hl() => [high, low, close]
+
+//Swing highs divergences
+get_divergence(ph, y2, sym_y2, css)=>
+    var float y1 = na
+    var float sym_y1 = na
+    var int x1 = na
+    var smt = 0
+
+    if y2 != y2[1] and sym_y2 != sym_y2[1] 
+        //Test for SMT
+        if (y2 - y1) * (sym_y2 - sym_y1) < 0
+            line.new(n[lengths], y2, x1, y1, color = css)
+
+            smt += 1
+        
+        sym_y1 := sym_y2
+        y1 := y2
+        x1 := n[lengths]
+    else if (ph and y2 > y2[1]) or (not ph and y2 < y2[1]) 
+        sym_y1 := na
+        y1 := y2
+        x1 := n[lengths]
+    
+    smt
+
+//-----------------------------------------------------------------------------}
+//Main variables
+//-----------------------------------------------------------------------------{
+var phN = 0, var plN = 0
+var ph_smt1 = 0.
+var pl_smt1 = 0.
+//CONIDTIONS
+var curr_checkb = false
+var curr_checks = false
+
+if not divergence_candle
+    curr_checkb:=true
+    curr_checks:=true
+if divergence_candle
+    if close[lengths]>open[lengths]
+        curr_checkb:=true
+        curr_checks:=false
+    if close[lengths]<open[lengths]
+        curr_checkb := false
+        curr_checks := true
+
+
+ticker1 = syminfo.ticker(sym1)
+
+//-----------------------------------------------------------------------------}
+//Detect swing highs/lows and divergences
+//-----------------------------------------------------------------------------{
+ph = fixnan(ta.pivothigh(length, lengths))
+pl = fixnan(ta.pivotlow(length, lengths))
+phN += ph != ph[1] ? 1 : 0
+plN += pl != pl[1] ? 1 : 0
+
+//Comparison symbol pivots
+[h1, l1, c1] = request.security(sym1, timeframe.period, get_hl())
+
+
+//Detect swing high divergences
+if useSym1
+    sym_ph1 = fixnan(ta.pivothigh(h1, length, lengths))
+    sym_pl1 = fixnan(ta.pivotlow(l1, length, lengths))
+
+    ph_smt1 := get_divergence(true, ph, sym_ph1, bullDivCss)
+    pl_smt1 := get_divergence(false, pl, sym_pl1, bearDivCss)
+
+
+txt = ''
+if ph != ph[1]
+    if ph_smt1 > ph_smt1[1]
+        txt += ticker1
+
+
+    if txt != ''  and curr_checks
+        label.new(n, ph[lengths], txt
+              , color = bullDivCss
+              , style = label.style_label_down
+              , textcolor = color.white
+              , size = size.tiny)
+else
+    if pl_smt1 > pl_smt1[1]
+        txt += ticker1
+
+    if txt != '' and curr_checkb
+        label.new(n, pl[lengths], txt
+              , color = bearDivCss
+              , style = label.style_label_up
+              , textcolor = color.white
+              , size = size.tiny)
+//////
+var next_candleb = false
+var next_candles = false
+if not divergence_candle_nxt
+    next_candleb := true
+    next_candles := true
+
+if divergence_candle_nxt
+    if close[1]<close
+        next_candleb := true
+        next_candles := false
+    if close[1]>close
+        next_candleb := false
+        next_candles := true
+
+if ph != ph[1] 
+    if ph_smt1[1] > ph_smt1[2] and next_candles and close[1]>close
+        strategy.entry("Sell" , strategy.short)
+        label.new(n, ph, text = "SELL"
+              , color = bullDivCss
+              , style = label.style_label_down
+              , textcolor = color.white
+              , size = size.tiny , yloc = yloc.abovebar)
+else
+    if pl_smt1[1] > pl_smt1[2] and next_candleb and close[1]<close
+        strategy.entry("BUY",strategy.long)
+        label.new(n, pl, text = "BUY"
+              , color = bearDivCss
+              , style = label.style_label_up
+              , textcolor = color.white
+              , size = size.tiny , yloc = yloc.belowbar)
+//-----------------------------------------------------------------------------}
+//Tables
+// if close[1]<close
+//     label.new(bar_index , high , "bb")
+// //-----------------------------------------------------------------------------{
+// var table_position = dashLoc == 'Bottom Left' ? position.bottom_left 
+//   : dashLoc == 'Top Right' ? position.top_right 
+//   : position.bottom_right
+
+// var table_size = textSize == 'Tiny' ? size.tiny 
+//   : textSize == 'Small' ? size.small 
+//   : size.normal
+
+// var tb = table.new(table_position, 3, 3
+//   , bgcolor = #1e222d
+//   , border_color = #373a46
+//   , border_width = 1
+//   , frame_color = #373a46
+//   , frame_width = 1)
+
+// if barstate.isfirst and showDash
+//     tb.cell(1, 0, 'Swing High', text_color = color.white)
+//     tb.cell(2, 0, 'Swing Low', text_color = color.white)
+    
+
+// if barstate.islast and showDash
+//     //Symbol 1
+//     tb.cell(1, 1, str.format('{0} ({1, number, percent})', ph_smt1, ph_smt1 / phN)
+//       , text_color = bullDivCss)
+//     tb.cell(2, 1, str.format('{0} ({1, number, percent})', pl_smt1, pl_smt1 / plN)
+//       , text_color = bearDivCss)
+    
+
+
+
+//-----------------------------------------------------------------------------}ALERTS
+
+// alertcondition(condition =ph != ph[1] and curr_checks , title = "BEARISH DIVERGENCE")
+// alertcondition(condition = pl_smt1 > pl_smt1[1] and curr_checkb , title = "BULLISH DIVERGENCE" )
+// alertcondition(condition =ph_smt1 > ph_smt1[1] and next_candles and curr_checks, title = "SELL")
+// alertcondition(condition =pl_smt1 > pl_smt1[1] and next_candleb and curr_checkb, title = "BUY")
